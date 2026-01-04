@@ -2,4 +2,4 @@
 *.tfstate
 *.tfstate.backup
 *.pem
-
+public_key_file.pub
