@@ -16,8 +16,8 @@ resource "aws_instance" "app" {
   instance_type               = var.instance_type
   subnet_id                   = var.private_subnet_id
   vpc_security_group_ids      = [var.vpc_sg_id]
-  key_name                    = aws_key_pair.app.key_name   # <-- aici asociem public key
-  associate_public_ip_address = false                           # necesar pentru SSH din exterior
+  key_name                    = aws_key_pair.app.key_name # <-- aici asociem public key
+  associate_public_ip_address = false                     # necesar pentru SSH din exterior
 
   tags = { Name = "app-server" }
 }
