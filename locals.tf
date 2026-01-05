@@ -6,4 +6,5 @@ locals {
    key_name            = "mykey" 
    vpn_ami             = "ami-0a5a4f5a8c4c9a3b7"
    aws_region          =  "eu-central-1"
+   
 }

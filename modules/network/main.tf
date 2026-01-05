@@ -2,7 +2,7 @@
 resource "aws_vpc" "vpc" {
   cidr_block = var.vpc_cidr
   tags = { Name = "main-vpc" }
-}
+} 
 
 # Public subnet
 resource "aws_subnet" "public" {
@@ -52,15 +52,13 @@ resource "aws_security_group" "vpc_sg" {
   name   = "vpc_sg"
   vpc_id = aws_vpc.vpc.id
 
-  # WireGuard UDP
+ # OpenVPN firewall rule
   ingress {
-    description = "WireGuard UDP"
-    from_port   = 51820
-    to_port     = 51820
+    from_port   = 1194
+    to_port     = 1194
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]  # permite acces de oriunde
   }
-
   # SSH (temporar, tot internetul)
   ingress {
     description = "SSH"

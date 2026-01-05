@@ -1,26 +1,25 @@
 # Generează cheia privată local
-resource "tls_private_key" "vpn" {
+resource "tls_private_key" "app" {
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
 # Creează key pair în AWS din public key
-resource "aws_key_pair" "vpn" {
-  key_name   = "vpn-key"
-  public_key = tls_private_key.vpn.public_key_openssh
+resource "aws_key_pair" "app" {
+  key_name   = "app-key"
+  public_key = tls_private_key.app.public_key_openssh
 }
 
-# Instanță EC2 VPN
-resource "aws_instance" "vpn" {
+# Instanță EC2 app
+resource "aws_instance" "app" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
-  subnet_id                   = var.public_subnet_id
-  vpc_security_group_ids      = [var.vpn_sg_id]
-  key_name                    = aws_key_pair.vpn.key_name   # <-- aici asociem public key
-  associate_public_ip_address = true    
-  source_dest_check = false                    # necesar pentru SSH din exterior
+  subnet_id                   = var.private_subnet_id
+  vpc_security_group_ids      = [var.vpc_sg_id]
+  key_name                    = aws_key_pair.app.key_name   # <-- aici asociem public key
+  associate_public_ip_address = false                           # necesar pentru SSH din exterior
 
-  tags = { Name = "vpn-server" }
+  tags = { Name = "app-server" }
 }
 
 # AMI Ubuntu

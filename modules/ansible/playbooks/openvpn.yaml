@@ -1,0 +1,137 @@
+- hosts: vpn
+  become: true
+  vars:
+    openvpn_port: 1194
+    client_name: "client1"
+  tasks:
+    # -------------------------------
+    # 1. Update system
+    # -------------------------------
+    - name: Update system
+      apt:
+        update_cache: yes
+        upgrade: yes
+
+    # -------------------------------
+    # 2. Install OpenVPN
+    # -------------------------------
+    - name: Install OpenVPN
+      apt:
+        name: openvpn
+        state: present
+
+    # -------------------------------
+    # 3. Enable IP forwarding
+    # -------------------------------
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        reload: yes
+
+    # -------------------------------
+    # 4. Configure UFW to allow OpenVPN
+    # -------------------------------
+    - name: Configure UFW to allow OpenVPN
+      ufw:
+        rule: allow
+        port: "{{ openvpn_port }}"
+        proto: udp
+
+    # -------------------------------
+    # 5. Start OpenVPN service
+    # -------------------------------
+    - name: Start OpenVPN service
+      systemd:
+        name: openvpn
+        state: started
+        enabled: yes
+
+    # -------------------------------
+    # 6. Install EasyRSA for certificate management
+    # -------------------------------
+    - name: Install EasyRSA
+      apt:
+        name: easy-rsa
+        state: present
+
+    - name: Copy EasyRSA to /etc/openvpn if not exists
+      copy:
+        src: /usr/share/easy-rsa/
+        dest: /etc/openvpn/easy-rsa
+        remote_src: yes
+        force: no   # nu suprascrie dacă există
+
+    # -------------------------------
+    # 7. Initialize PKI if not exists
+    # -------------------------------
+    - name: Initialize PKI
+      command: ./easyrsa init-pki
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      register: pki_init
+      changed_when: "'already exists' not in pki_init.stderr"
+
+    # -------------------------------
+    # 8. Build CA if not exists
+    # -------------------------------
+    - name: Build CA if not exists
+      command: ./easyrsa build-ca nopass
+      args:
+        chdir: /etc/openvpn/easy-rsa
+        creates: /etc/openvpn/easy-rsa/pki/ca.crt
+      environment:
+        EASYRSA_BATCH: "1"
+
+    # -------------------------------
+    # 9. Generate server certificate if not exists
+    # -------------------------------
+    - name: Generate server certificate if not exists
+      command: ./easyrsa build-server-full server nopass
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      when: not lookup('file', '/etc/openvpn/easy-rsa/pki/issued/server.crt', errors='ignore')
+
+    # -------------------------------
+    # 10. Generate client certificate if not exists
+    # -------------------------------
+    - name: Generate client certificate if not exists
+      command: ./easyrsa build-client-full {{ client_name }} nopass
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      when: not lookup('file', '/etc/openvpn/easy-rsa/pki/issued/{{ client_name }}.crt', errors='ignore')
+
+    # -------------------------------
+    # 11. Generate Diffie-Hellman key if not exists
+    # -------------------------------
+    - name: Generate Diffie-Hellman key if not exists
+      command: ./easyrsa gen-dh
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      when: not lookup('file', '/etc/openvpn/easy-rsa/pki/dh.pem', errors='ignore')
+
+    # -------------------------------
+    # 12. Generate client .ovpn file (overwrites each run)
+    # -------------------------------
+    - name: Generate client .ovpn file
+      shell: |
+        cat <<EOF > /etc/openvpn/{{ client_name }}.ovpn
+        client
+        dev tun
+        proto udp
+        remote {{ ansible_host }} {{ openvpn_port }}
+        resolv-retry infinite
+        nobind
+        persist-key
+        persist-tun
+        ca /etc/openvpn/easy-rsa/pki/ca.crt
+        cert /etc/openvpn/easy-rsa/pki/issued/{{ client_name }}.crt
+        key /etc/openvpn/easy-rsa/pki/private/{{ client_name }}.key
+        remote-cert-tls server
+        cipher AES-256-CBC
+        comp-lzo
+        verb 3
+        EOF
+      args:
+        executable: /bin/bash
