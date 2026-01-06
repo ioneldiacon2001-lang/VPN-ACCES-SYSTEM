@@ -1,0 +1,43 @@
+- name: Install Grafana on VPN host
+  hosts: vpn
+  become: yes
+  tasks:
+    - name: Install prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+        state: present
+        update_cache: yes
+
+    - name: Add Grafana GPG key
+      shell: |
+        wget -q -O - https://apt.grafana.com/gpg.key | apt-key add -
+      args:
+        creates: /etc/apt/trusted.gpg
+
+    - name: Add Grafana repo
+      copy:
+        dest: /etc/apt/sources.list.d/grafana.list
+        content: "deb https://apt.grafana.com stable main\n"
+        mode: "0644"
+
+    - name: Install Grafana
+      apt:
+        name: grafana={{ grafana_version }}
+        state: present
+        update_cache: yes
+
+    - name: Bind Grafana to desired listen address
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: '^;?http_addr\s*='
+        line: "http_addr = {{ grafana_listen }}"
+
+    - name: Enable and start grafana-server
+      systemd:
+        name: grafana-server
+        enabled: yes
+        state: started
+        daemon_reload: yes

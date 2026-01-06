@@ -1,0 +1,98 @@
+- name: Install and configure Nginx Prometheus Exporter
+  hosts: app
+  become: yes
+
+  vars:
+    nginx_exporter_version: "1.1.0"
+    nginx_stub_listen: "127.0.0.1"
+    nginx_stub_port: 8080
+
+    # exporter must be reachable from Prometheus over the network:
+    nginx_exporter_listen: "0.0.0.0"
+    nginx_exporter_port: 9113
+
+  tasks:
+    - name: Ensure nginx is installed
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Configure nginx stub_status (local only)
+      copy:
+        dest: /etc/nginx/conf.d/stub_status.conf
+        mode: "0644"
+        content: |
+          server {
+            listen {{ nginx_stub_listen }}:{{ nginx_stub_port }};
+            server_name localhost;
+
+            location /stub_status {
+              stub_status;
+              allow 127.0.0.1;
+              deny all;
+            }
+          }
+      notify: Restart nginx
+
+    - name: Download nginx-prometheus-exporter tarball
+      get_url:
+        url: "https://github.com/nginxinc/nginx-prometheus-exporter/releases/download/v{{ nginx_exporter_version }}/nginx-prometheus-exporter_{{ nginx_exporter_version }}_linux_amd64.tar.gz"
+        dest: "/tmp/nginx_exporter_{{ nginx_exporter_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Extract nginx exporter
+      unarchive:
+        src: "/tmp/nginx_exporter_{{ nginx_exporter_version }}.tar.gz"
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install nginx exporter binary
+      copy:
+        src: "/tmp/nginx-prometheus-exporter"
+        dest: /usr/local/bin/nginx-prometheus-exporter
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: yes
+
+    - name: Create systemd service for nginx exporter
+      copy:
+        dest: /etc/systemd/system/nginx_exporter.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Nginx Prometheus Exporter
+          Wants=network-online.target
+          After=network-online.target nginx.service
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/nginx-prometheus-exporter \
+            -web.listen-address={{ nginx_exporter_listen }}:{{ nginx_exporter_port }} \
+            -nginx.scrape-uri http://{{ nginx_stub_listen }}:{{ nginx_stub_port }}/stub_status
+          Restart=always
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart nginx exporter
+
+    - name: Enable and start nginx exporter
+      systemd:
+        name: nginx_exporter
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+  handlers:
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted
+
+    - name: Restart nginx exporter
+      systemd:
+        name: nginx_exporter
+        state: restarted
+        daemon_reload: yes

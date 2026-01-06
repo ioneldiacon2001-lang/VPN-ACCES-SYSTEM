@@ -1,0 +1,8 @@
+node_exporter_version: "1.7.0"
+prometheus_version: "2.52.0"
+grafana_version: "10.4.2"
+
+# Unde vrei să asculte Prometheus/Grafana
+# safe default: localhost-only (le accesezi cu SSH tunnel)
+prometheus_listen: "127.0.0.1"
+grafana_listen: "127.0.0.1"
