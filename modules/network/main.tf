@@ -123,7 +123,41 @@ resource "aws_security_group" "vpc_sg" {
   }
 
   tags = { Name = "vpc-sg" }
+
+  ingress {
+    description = "Grafana freom VPN clients"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["10.8.0.0/24"]
+  }
+
+  ingress {
+    description = "Prometheus from VPN clients"
+    from_port   = 9090
+    to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = ["10.8.0.0/24"]
+  }
+  ingress {
+  description = "node_exporter from VPN"
+  from_port   = 9100
+  to_port     = 9100
+  protocol    = "tcp"
+  cidr_blocks = ["10.0.1.81/32"]
 }
+
+ingress {
+  description = "nginx_exporter from Prometheus (VPN EC2)"
+  from_port   = 9113
+  to_port     = 9113
+  protocol    = "tcp"
+  cidr_blocks = ["10.0.1.81/32"]
+}
+
+
+}
+
 
 
 # EIP pentru NAT Gateway
